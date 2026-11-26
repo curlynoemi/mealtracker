@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meal Budget &amp; Receipt Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            burgundy: {
+              DEFAULT: '#4a070b',
+              dark: '#380508',
+              light: '#6e141a',
+            },
+            blush: {
+              50: '#fdf2f4',
+              100: '#fbe5e9',
+              200: '#f5ccd4',
+              300: '#eba8b5',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #fdf2f4;
+      color: #380508;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    /* Custom subtle scrollbars for tables */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #fdf2f4;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #eba8b5;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #6e141a;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-blush-200 selection:text-burgundy-dark">
+  <!-- Main Application Wrapper -->
+  <div id="app" class="max-w-5xl mx-auto px-3 sm:px-6 py-5 sm:py-8 space-y-6">
+
+    <!-- Minimal Header: Page Title Only -->
+    <header class="pt-1">
+      <h1 class="text-2xl sm:text-3xl font-bold text-burgundy-dark tracking-tight">
+        Food Expense &amp; Meal Tracker
+      </h1>
+    </header>
+
+    <!-- Non-blocking Status / Notification Banner -->
+    <div id="status-banner" class="hidden px-4 py-2.5 rounded-xl text-sm font-medium border flex items-center justify-between gap-3" role="status">
+      <span id="status-banner-text"></span>
+      <button type="button" id="btn-dismiss-banner" class="text-xs underline opacity-80 hover:opacity-100 cursor-pointer">Dismiss</button>
+    </div>
+
+    <!-- Day Selector Bar (Nov 24 – Nov 29, 2026) -->
+    <section aria-label="Trip Day Selector" class="bg-white border border-blush-200 rounded-2xl p-3 sm:p-4 shadow-sm">
+      <div id="day-selector-pills" class="grid grid-cols-3 sm:flex sm:flex-wrap gap-1.5">
+        <!-- Day buttons injected dynamically -->
+      </div>
+    </section>
+
+    <!-- Dynamic KPI Summary Cards (4 Cards including Budget Left for the Day) -->
+    <section aria-label="Budget Summary Metrics" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Card 1: Budget Left for the Day -->
+      <div class="bg-white border-2 border-burgundy/25 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between gap-2">
+            <span id="kpi-day-label" class="text-xs font-bold uppercase tracking-wider text-burgundy">Budget Left Today</span>
+            <span id="kpi-day-status-pill" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blush-100 text-burgundy-dark border border-blush-200 tabular-nums">
+              On Track
+            </span>
+          </div>
+          <div class="mt-1.5 flex items-baseline justify-between gap-2">
+            <span id="kpi-day-left" class="text-2xl sm:text-3xl font-bold text-burgundy-dark tabular-nums">€30.00</span>
+            <span id="kpi-day-allowance" class="text-xs font-medium text-burgundy/75 tabular-nums">of €30.00</span>
+          </div>
+        </div>
+        <p id="kpi-day-spent-note" class="mt-3 pt-3 border-t border-blush-100 text-xs text-burgundy/80 tabular-nums">
+          Spent this day: €0.00 (2 planned meals)
+        </p>
+      </div>
+
+      <!-- Card 2: Total Spent & Overall Remaining -->
+      <div class="bg-white border border-blush-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+        <div>
+          <span class="text-xs font-semibold uppercase tracking-wider text-burgundy/70">Trip Remaining / Spent</span>
+          <div class="mt-1.5 flex items-baseline justify-between gap-2">
+            <span id="kpi-remaining-budget" class="text-2xl sm:text-3xl font-bold text-burgundy-dark tabular-nums">€180.00</span>
+            <span id="kpi-total-spent" class="text-xs font-semibold text-burgundy/75 tabular-nums">€0.00 spent</span>
+          </div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-blush-100">
+          <div class="w-full h-2 bg-blush-100 rounded-full overflow-hidden">
+            <div id="kpi-spend-bar" class="h-full bg-burgundy rounded-full transition-all duration-300" style="width: 0%;"></div>
+          </div>
+          <p id="kpi-spend-pct" class="mt-1.5 text-xs text-burgundy/75 tabular-nums">0.0% of €180.00 used</p>
+        </div>
+      </div>
+
+      <!-- Card 3: Remaining Meals Allowance (€ / meal) -->
+      <div class="bg-white border border-blush-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+        <div>
+          <span class="text-xs font-semibold uppercase tracking-wider text-burgundy/70">Remaining Meal Allowance</span>
+          <div class="mt-1.5 flex items-baseline justify-between gap-2">
+            <span id="kpi-dynamic-meal" class="text-2xl sm:text-3xl font-bold text-burgundy tabular-nums">€15.00</span>
+            <span id="kpi-remaining-meals" class="text-xs font-medium text-burgundy/75 tabular-nums">12 meals left</span>
+          </div>
+        </div>
+        <p id="kpi-meal-delta" class="mt-3 pt-3 border-t border-blush-100 text-xs font-medium text-burgundy/80 tabular-nums">
+          Baseline: €15.00 / meal (2 meals/day)
+        </p>
+      </div>
+
+      <!-- Card 4: Next Day Estimated Budget -->
+      <div class="bg-white border border-blush-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+        <div>
+          <span class="text-xs font-semibold uppercase tracking-wider text-burgundy/70">Next Day Estimated Budget</span>
+          <div class="mt-1.5 flex items-baseline justify-between gap-2">
+            <span id="kpi-next-day" class="text-2xl sm:text-3xl font-bold text-burgundy-dark tabular-nums">€30.00</span>
+            <span id="kpi-next-day-date" class="text-xs font-medium text-burgundy/75 tabular-nums">25 Nov</span>
+          </div>
+        </div>
+        <p id="kpi-next-day-note" class="mt-3 pt-3 border-t border-blush-100 text-xs text-burgundy/75 tabular-nums">
+          For 2 meals (€15.00 / meal)
+        </p>
+      </div>
+    </section>
+
+    <!-- Add / Edit Receipt Form + Receipt Table Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- Receipt Entry Form (4 cols on desktop) -->
+      <section aria-label="Add or Edit Receipt" class="lg:col-span-4 bg-white border border-blush-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <h2 id="form-title" class="text-base font-bold text-burgundy-dark">Log Receipt</h2>
+          <button
+            type="button"
+            id="btn-cancel-edit"
+            class="hidden text-xs font-semibold text-burgundy hover:underline cursor-pointer"
+          >
+            Cancel Edit
+          </button>
+        </div>
+
+        <form id="receipt-form" class="space-y-3.5" novalidate>
+          <input type="hidden" id="edit-receipt-id" value="" />
+
+          <div>
+            <label for="receipt-seller" class="block text-xs font-semibold text-burgundy mb-1">
+              Seller / Store Name <span class="text-rose-700">*</span>
+            </label>
+            <input
+              type="text"
+              id="receipt-seller"
+              required
+              placeholder="e.g., Osteria, Conad, Caffè"
+              class="w-full px-3 py-2 bg-blush-50/50 border border-blush-200 rounded-xl text-sm text-burgundy-dark placeholder:text-burgundy/40 focus:outline-none focus:bg-white focus:ring-2 focus:ring-burgundy/30"
+            />
+          </div>
+
+          <div>
+            <label for="receipt-amount" class="block text-xs font-semibold text-burgundy mb-1">
+              Amount Spent (€) <span class="text-rose-700">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-burgundy/70 font-semibold text-sm">€</span>
+              <input
+                type="number"
+                id="receipt-amount"
+                required
+                step="0.01"
+                min="0.01"
+                placeholder="14.50"
+                class="w-full pl-7 pr-3 py-2 bg-blush-50/50 border border-blush-200 rounded-xl text-sm font-semibold text-burgundy-dark tabular-nums placeholder:text-burgundy/40 focus:outline-none focus:bg-white focus:ring-2 focus:ring-burgundy/30"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label for="receipt-datetime" class="block text-xs font-semibold text-burgundy mb-1">
+              Date &amp; Time <span class="text-rose-700">*</span>
+            </label>
+            <input
+              type="datetime-local"
+              id="receipt-datetime"
+              required
+              class="w-full px-3 py-2 bg-blush-50/50 border border-blush-200 rounded-xl text-sm text-burgundy-dark tabular-nums focus:outline-none focus:bg-white focus:ring-2 focus:ring-burgundy/30"
+            />
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-blush-50 border border-blush-200 text-xs text-burgundy/85 flex items-center justify-between">
+            <span>Meal target reference:</span>
+            <strong id="form-target-val" class="tabular-nums text-burgundy-dark">€15.00 / meal</strong>
+          </div>
+
+          <button
+            type="submit"
+            id="btn-submit-receipt"
+            class="w-full py-2.5 px-4 rounded-xl bg-burgundy hover:bg-burgundy-dark text-white font-semibold text-sm shadow-sm transition cursor-pointer"
+          >
+            Save Receipt
+          </button>
+        </form>
+      </section>
+
+      <!-- Receipt Table (8 cols on desktop) -->
+      <section aria-label="Receipts Table" class="lg:col-span-8 bg-white border border-blush-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 mb-4">
+          <div>
+            <h2 class="text-base font-bold text-burgundy-dark">Logged Receipts</h2>
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="filter-status" class="text-xs font-medium text-burgundy/75">Filter:</label>
+            <select
+              id="filter-status"
+              class="px-2.5 py-1.5 rounded-lg bg-blush-50 border border-blush-200 text-xs font-semibold text-burgundy-dark focus:outline-none"
+            >
+              <option value="ALL">All Receipts</option>
+              <option value="UNDER">Under Target</option>
+              <option value="ON_TARGET">On Target</option>
+              <option value="OVER">Over Target</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-receipts-state" class="hidden text-center py-10 px-4 border border-dashed border-blush-300 rounded-2xl bg-blush-50/50">
+          <h3 class="text-sm font-bold text-burgundy-dark">No receipts logged yet</h3>
+          <p class="text-xs text-burgundy/75 max-w-md mx-auto mt-1">
+            Add a receipt on the left. Your entries stay saved automatically so you can come back to them every day.
+          </p>
+        </div>
+
+        <!-- Responsive Table Container -->
+        <div id="receipts-table-wrapper" class="overflow-x-auto rounded-xl border border-blush-200">
+          <table class="w-full text-left border-collapse min-w-[580px]">
+            <thead>
+              <tr class="bg-blush-100/80 border-b border-blush-200 text-[11px] font-bold uppercase tracking-wider text-burgundy">
+                <th class="py-3 px-3.5">Seller</th>
+                <th class="py-3 px-3.5">Date &amp; Time</th>
+                <th class="py-3 px-3.5 text-right">Amount</th>
+                <th class="py-3 px-3.5">Status</th>
+                <th class="py-3 px-3.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="receipts-tbody" class="divide-y divide-blush-100 text-sm">
+              <!-- Rows injected dynamically -->
+            </tbody>
+            <tfoot id="receipts-tfoot" class="bg-blush-50 border-t-2 border-blush-200 font-semibold text-burgundy-dark">
+              <tr>
+                <td colspan="2" class="py-3 px-3.5 text-xs uppercase tracking-wider text-burgundy">
+                  Total Spent
+                </td>
+                <td id="tfoot-total-amount" class="py-3 px-3.5 text-right tabular-nums text-base font-bold">
+                  €0.00
+                </td>
+                <td id="tfoot-variance-summary" class="py-3 px-3.5 text-xs text-burgundy/80 tabular-nums">
+                  —
+                </td>
+                <td class="py-3 px-3.5 text-right"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Meal Budget & Receipt Tracker
+     * Fixed Trip Parameters:
+     * - Total Budget: €180.00
+     * - Dates: 24 Nov 2026 (Day 1) to 29 Nov 2026 (Day 6) -> 6 days
+     * - Schedule: 2 meals/day -> 12 planned meals total (€15.00 baseline/meal, €30.00 baseline/day)
+     */
+    (function () {
+      'use strict';
+
+      const STORAGE_KEY = 'food_budget_nov24_29_2026_v3';
+
+      // Fixed Schedule & Budget Constants
+      const TOTAL_BUDGET = 180.0;
+      const TOTAL_DAYS = 6;
+      const MEALS_PER_DAY = 2;
+      const TOTAL_PLANNED_MEALS = TOTAL_DAYS * MEALS_PER_DAY; // 12
+      const BASELINE_PER_MEAL = TOTAL_BUDGET / TOTAL_PLANNED_MEALS; // 15.00
+      const BASELINE_PER_DAY = TOTAL_BUDGET / TOTAL_DAYS; // 30.00
+
+      // Pre-loaded receipts from uploaded PDF (24 Nov – 26 Nov 2026)
+      const DEFAULT_RECEIPTS = [
+        {
+          id: 'pdf-r1',
+          seller: 'Vecchia Malga Negozi S.r.l.',
+          amount: 8.0,
+          datetime: '2026-11-24T13:27',
+        },
+        {
+          id: 'pdf-r2',
+          seller: 'Camst Soc. Coop. a r.l.',
+          amount: 8.0,
+          datetime: '2026-11-24T18:06',
+        },
+        {
+          id: 'pdf-r3',
+          seller: "Draben's Taco",
+          amount: 10.0,
+          datetime: '2026-11-24T22:45',
+        },
+        {
+          id: 'pdf-r4',
+          seller: 'Camst Soc. Coop. a r.l.',
+          amount: 6.0,
+          datetime: '2026-11-25T14:49',
+        },
+        {
+          id: 'pdf-r5',
+          seller: 'Camst Soc. Coop. a r.l.',
+          amount: 10.0,
+          datetime: '2026-11-25T18:54',
+        },
+        {
+          id: 'pdf-r6',
+          seller: "Draben's Taco",
+          amount: 23.0,
+          datetime: '2026-11-25T22:13',
+        },
+        {
+          id: 'pdf-r7',
+          seller: 'Bar Girasole (Feng Sheng Snc)',
+          amount: 2.0,
+          datetime: '2026-11-26T08:59',
+        },
+      ];
+
+      // Trip days definition: 24 Nov 2026 to 29 Nov 2026
+      const TRIP_DAYS = [
+        { dayNum: 1, dateKey: '2026-11-24', shortLabel: '24 Nov', fullLabel: 'Tue, 24 Nov' },
+        { dayNum: 2, dateKey: '2026-11-25', shortLabel: '25 Nov', fullLabel: 'Wed, 25 Nov' },
+        { dayNum: 3, dateKey: '2026-11-26', shortLabel: '26 Nov', fullLabel: 'Thu, 26 Nov' },
+        { dayNum: 4, dateKey: '2026-11-27', shortLabel: '27 Nov', fullLabel: 'Fri, 27 Nov' },
+        { dayNum: 5, dateKey: '2026-11-28', shortLabel: '28 Nov', fullLabel: 'Sat, 28 Nov' },
+        { dayNum: 6, dateKey: '2026-11-29', shortLabel: '29 Nov', fullLabel: 'Sun, 29 Nov' },
+      ];
+
+      // Load saved receipts from localStorage or seed with DEFAULT_RECEIPTS
+      function loadReceipts() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              return parsed;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not read from localStorage:', err);
+        }
+        return DEFAULT_RECEIPTS.map((r) => Object.assign({}, r));
+      }
+
+      function saveReceipts() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(receipts));
+        } catch (err) {
+          showStatusBanner('Warning: Browser storage is restricted; changes may not persist after closing.', 'error');
+        }
+      }
+
+      // Detect active trip day (defaults to Day 3 / 26 Nov 2026 when current date is outside range)
+      function detectInitialDayNumber() {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+        const found = TRIP_DAYS.find((d) => d.dateKey === todayStr);
+        return found ? found.dayNum : 3;
+      }
+
+      // Application State
+      let receipts = loadReceipts();
+      let selectedDayNumber = detectInitialDayNumber();
+      let activeFilter = 'ALL';
+
+      // DOM References
+      const els = {
+        statusBanner: document.getElementById('status-banner'),
+        statusBannerText: document.getElementById('status-banner-text'),
+        btnDismissBanner: document.getElementById('btn-dismiss-banner'),
+
+        daySelectorPills: document.getElementById('day-selector-pills'),
+
+        kpiDayLabel: document.getElementById('kpi-day-label'),
+        kpiDayStatusPill: document.getElementById('kpi-day-status-pill'),
+        kpiDayLeft: document.getElementById('kpi-day-left'),
+        kpiDayAllowance: document.getElementById('kpi-day-allowance'),
+        kpiDaySpentNote: document.getElementById('kpi-day-spent-note'),
+
+        kpiRemainingBudget: document.getElementById('kpi-remaining-budget'),
+        kpiTotalSpent: document.getElementById('kpi-total-spent'),
+        kpiSpendBar: document.getElementById('kpi-spend-bar'),
+        kpiSpendPct: document.getElementById('kpi-spend-pct'),
+
+        kpiDynamicMeal: document.getElementById('kpi-dynamic-meal'),
+        kpiRemainingMeals: document.getElementById('kpi-remaining-meals'),
+        kpiMealDelta: document.getElementById('kpi-meal-delta'),
+
+        kpiNextDay: document.getElementById('kpi-next-day'),
+        kpiNextDayDate: document.getElementById('kpi-next-day-date'),
+        kpiNextDayNote: document.getElementById('kpi-next-day-note'),
+
+        formTitle: document.getElementById('form-title'),
+        btnCancelEdit: document.getElementById('btn-cancel-edit'),
+        receiptForm: document.getElementById('receipt-form'),
+        editReceiptId: document.getElementById('edit-receipt-id'),
+        receiptSeller: document.getElementById('receipt-seller'),
+        receiptAmount: document.getElementById('receipt-amount'),
+        receiptDatetime: document.getElementById('receipt-datetime'),
+        formTargetVal: document.getElementById('form-target-val'),
+        btnSubmitReceipt: document.getElementById('btn-submit-receipt'),
+
+        filterStatus: document.getElementById('filter-status'),
+        emptyReceiptsState: document.getElementById('empty-receipts-state'),
+        receiptsTableWrapper: document.getElementById('receipts-table-wrapper'),
+        receiptsTableFooter: document.getElementById('receipts-tfoot'),
+        receiptsTbody: document.getElementById('receipts-tbody'),
+        tfootTotalAmount: document.getElementById('tfoot-total-amount'),
+        tfootVarianceSummary: document.getElementById('tfoot-variance-summary'),
+      };
+
+      function formatEuro(value) {
+        const num = Number(value) || 0;
+        const sign = num < 0 ? '-' : '';
+        return `${sign}€${Math.abs(num).toFixed(2)}`;
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function showStatusBanner(message, type) {
+        els.statusBannerText.textContent = message;
+        els.statusBanner.classList.remove(
+          'hidden',
+          'bg-rose-50',
+          'border-rose-300',
+          'text-rose-900',
+          'bg-emerald-50',
+          'border-emerald-300',
+          'text-emerald-900',
+          'bg-blush-100',
+          'border-blush-300',
+          'text-burgundy-dark'
+        );
+
+        if (type === 'error') {
+          els.statusBanner.classList.add('bg-rose-50', 'border-rose-300', 'text-rose-900');
+        } else if (type === 'success') {
+          els.statusBanner.classList.add('bg-emerald-50', 'border-emerald-300', 'text-emerald-900');
+        } else {
+          els.statusBanner.classList.add('bg-blush-100', 'border-blush-300', 'text-burgundy-dark');
+        }
+      }
+
+      function hideStatusBanner() {
+        els.statusBanner.classList.add('hidden');
+      }
+
+      function formatDisplayDateTime(isoString) {
+        if (!isoString) return '—';
+        const d = new Date(isoString);
+        if (Number.isNaN(d.getTime())) return isoString;
+        const datePart = d.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+        const timePart = d.toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+        return `${datePart}, ${timePart}`;
+      }
+
+      function getDateKeyFromIso(isoString) {
+        if (!isoString || isoString.length < 10) return '';
+        return isoString.slice(0, 10);
+      }
+
+      /**
+       * Classify receipt amount against the €15.00 baseline meal target.
+       */
+      function getReceiptStatus(amount) {
+        const diff = amount - BASELINE_PER_MEAL;
+        const tolerance = 0.01;
+        if (diff < -tolerance) {
+          return {
+            code: 'UNDER',
+            label: `Under by ${formatEuro(Math.abs(diff))}`,
+            badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+          };
+        }
+        if (diff > tolerance) {
+          return {
+            code: 'OVER',
+            label: `Over by ${formatEuro(diff)}`,
+            badgeClass: 'bg-rose-50 text-rose-800 border-rose-200',
+          };
+        }
+        return {
+          code: 'ON_TARGET',
+          label: 'On Target',
+          badgeClass: 'bg-blush-100 text-burgundy-dark border-blush-200',
+        };
+      }
+
+      /**
+       * Core Budget & Meal Calculations
+       * Fixed schedule: 24 Nov – 29 Nov 2026 (6 days), €180 budget, 2 meals/day.
+       */
+      function calculateMetrics() {
+        const activeDayObj = TRIP_DAYS.find((d) => d.dayNum === selectedDayNumber) || TRIP_DAYS[0];
+        const totalSpent = receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+        const remainingTotalBudget = TOTAL_BUDGET - totalSpent;
+
+        // Days strictly before selectedDayNumber
+        const priorDayKeys = new Set(
+          TRIP_DAYS.filter((d) => d.dayNum < selectedDayNumber).map((d) => d.dateKey)
+        );
+        const spentBeforeSelectedDay = receipts
+          .filter((r) => priorDayKeys.has(getDateKeyFromIso(r.datetime)))
+          .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+        // Budget available at the start of selectedDayNumber distributed across remaining days (including today)
+        const remainingDaysInclToday = TOTAL_DAYS - selectedDayNumber + 1;
+        const budgetAvailableEnteringToday = TOTAL_BUDGET - spentBeforeSelectedDay;
+        const dynamicDailyAllowanceForSelectedDay =
+          budgetAvailableEnteringToday / Math.max(1, remainingDaysInclToday);
+
+        // Spending logged specifically on selectedDayNumber
+        const spentOnSelectedDay = receipts
+          .filter((r) => getDateKeyFromIso(r.datetime) === activeDayObj.dateKey)
+          .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+        const budgetLeftForSelectedDay = dynamicDailyAllowanceForSelectedDay - spentOnSelectedDay;
+
+        // Remaining planned meals calculation (2 meals/day schedule)
+        const futureDaysCount = Math.max(0, TOTAL_DAYS - selectedDayNumber);
+        const remainingPlannedMealsAfterToday = futureDaysCount * MEALS_PER_DAY;
+        const remainingPlannedMealsInclToday = remainingDaysInclToday * MEALS_PER_DAY;
+
+        // Dynamic allowance per remaining meal after accounting for all logged receipts so far
+        const effectiveRemainingMeals = Math.max(1, remainingPlannedMealsAfterToday);
+        const dynamicPerRemainingMeal = remainingTotalBudget / effectiveRemainingMeals;
+        const nextDayEstimatedBudget =
+          futureDaysCount > 0 ? dynamicPerRemainingMeal * MEALS_PER_DAY : Math.max(0, remainingTotalBudget);
+
+        return {
+          activeDayObj,
+          totalSpent,
+          remainingTotalBudget,
+          dynamicDailyAllowanceForSelectedDay,
+          spentOnSelectedDay,
+          budgetLeftForSelectedDay,
+          remainingPlannedMealsInclToday,
+          effectiveRemainingMeals,
+          dynamicPerRemainingMeal,
+          futureDaysCount,
+          nextDayEstimatedBudget,
+        };
+      }
+
+      /**
+       * Set default datetime-local value matching the selected trip day.
+       */
+      function syncDefaultFormDateTime() {
+        if (els.editReceiptId.value) return;
+        const activeDayObj = TRIP_DAYS.find((d) => d.dayNum === selectedDayNumber) || TRIP_DAYS[0];
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        els.receiptDatetime.value = `${activeDayObj.dateKey}T${hh}:${min}`;
+      }
+
+      /**
+       * Render Day 1 - Day 6 Selector Pills
+       */
+      function renderDaySelector() {
+        els.daySelectorPills.innerHTML = TRIP_DAYS.map((day) => {
+          const isSelected = day.dayNum === selectedDayNumber;
+          const daySpent = receipts
+            .filter((r) => getDateKeyFromIso(r.datetime) === day.dateKey)
+            .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+          const btnClasses = isSelected
+            ? 'bg-burgundy text-white border-burgundy shadow-sm'
+            : 'bg-blush-50/70 hover:bg-blush-100 text-burgundy-dark border-blush-200';
+          const subClasses = isSelected ? 'text-blush-100' : 'text-burgundy/70';
+
+          return `
+            <button
+              type="button"
+              data-day-num="${day.dayNum}"
+              class="day-pill-btn flex-1 min-w-[92px] px-3 py-2 rounded-xl border text-left transition cursor-pointer ${btnClasses}"
+            >
+              <div class="flex items-center justify-between gap-1">
+                <span class="text-xs font-bold">Day ${day.dayNum}</span>
+                <span class="text-[11px] font-medium ${subClasses}">${day.shortLabel}</span>
+              </div>
+              <div class="mt-0.5 text-xs font-semibold tabular-nums ${isSelected ? 'text-white' : 'text-burgundy'}">
+                ${formatEuro(daySpent)}
+              </div>
+            </button>
+          `;
+        }).join('');
+
+        document.querySelectorAll('.day-pill-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            selectedDayNumber = Number(btn.getAttribute('data-day-num'));
+            syncDefaultFormDateTime();
+            render();
+          });
+        });
+      }
+
+      /**
+       * Render KPI Summary Cards
+       */
+      function renderKPIs(m) {
+        // Card 1: Budget Left for the Day
+        els.kpiDayLabel.textContent = `Budget Left • ${m.activeDayObj.shortLabel}`;
+        els.kpiDayLeft.textContent = formatEuro(m.budgetLeftForSelectedDay);
+        els.kpiDayAllowance.textContent = `of ${formatEuro(m.dynamicDailyAllowanceForSelectedDay)}`;
+        els.kpiDaySpentNote.textContent = `Spent on ${m.activeDayObj.shortLabel}: ${formatEuro(m.spentOnSelectedDay)} (2 meals/day)`;
+
+        els.kpiDayLeft.classList.remove('text-burgundy-dark', 'text-emerald-700', 'text-rose-700');
+        els.kpiDayStatusPill.classList.remove(
+          'bg-blush-100',
+          'text-burgundy-dark',
+          'border-blush-200',
+          'bg-emerald-50',
+          'text-emerald-800',
+          'border-emerald-200',
+          'bg-rose-50',
+          'text-rose-800',
+          'border-rose-200'
+        );
+
+        if (m.budgetLeftForSelectedDay < -0.01) {
+          els.kpiDayLeft.classList.add('text-rose-700');
+          els.kpiDayStatusPill.textContent = 'Over Daily Limit';
+          els.kpiDayStatusPill.classList.add('bg-rose-50', 'text-rose-800', 'border-rose-200');
+        } else if (m.spentOnSelectedDay > 0 && m.budgetLeftForSelectedDay > 0.01) {
+          els.kpiDayLeft.classList.add('text-emerald-700');
+          els.kpiDayStatusPill.textContent = 'Under Limit';
+          els.kpiDayStatusPill.classList.add('bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
+        } else {
+          els.kpiDayLeft.classList.add('text-burgundy-dark');
+          els.kpiDayStatusPill.textContent = 'On Track';
+          els.kpiDayStatusPill.classList.add('bg-blush-100', 'text-burgundy-dark', 'border-blush-200');
+        }
+
+        // Card 2: Total Trip Remaining & Spent
+        els.kpiRemainingBudget.textContent = formatEuro(m.remainingTotalBudget);
+        els.kpiTotalSpent.textContent = `${formatEuro(m.totalSpent)} spent`;
+
+        els.kpiRemainingBudget.classList.toggle('text-rose-700', m.remainingTotalBudget < 0);
+        els.kpiRemainingBudget.classList.toggle('text-burgundy-dark', m.remainingTotalBudget >= 0);
+
+        const pctUsed = Math.min(100, Math.max(0, (m.totalSpent / TOTAL_BUDGET) * 100));
+        els.kpiSpendBar.style.width = `${pctUsed.toFixed(1)}%`;
+        els.kpiSpendBar.classList.toggle('bg-rose-600', m.totalSpent > TOTAL_BUDGET);
+        els.kpiSpendBar.classList.toggle('bg-burgundy', m.totalSpent <= TOTAL_BUDGET);
+        els.kpiSpendPct.textContent = `${((m.totalSpent / TOTAL_BUDGET) * 100).toFixed(1)}% of €180.00 used`;
+
+        // Card 3: Remaining Meal Allowance
+        if (m.futureDaysCount === 0) {
+          els.kpiDynamicMeal.textContent = formatEuro(Math.max(0, m.remainingTotalBudget));
+          els.kpiRemainingMeals.textContent = 'Final day (29 Nov)';
+          els.kpiMealDelta.textContent =
+            m.remainingTotalBudget >= 0
+              ? `${formatEuro(m.remainingTotalBudget)} left for final day meals`
+              : `Over €180.00 budget by ${formatEuro(Math.abs(m.remainingTotalBudget))}`;
+        } else {
+          els.kpiDynamicMeal.textContent = formatEuro(m.dynamicPerRemainingMeal);
+          els.kpiRemainingMeals.textContent = `${m.remainingPlannedMealsAfterToday} upcoming meals`;
+          const mealDiff = m.dynamicPerRemainingMeal - BASELINE_PER_MEAL;
+          if (Math.abs(mealDiff) < 0.01) {
+            els.kpiMealDelta.textContent = 'Right on €15.00 / meal baseline';
+          } else if (mealDiff > 0) {
+            els.kpiMealDelta.textContent = `+${formatEuro(mealDiff)} / meal vs €15.00 baseline`;
+          } else {
+            els.kpiMealDelta.textContent = `${formatEuro(mealDiff)} / meal vs €15.00 baseline`;
+          }
+        }
+
+        // Card 4: Next Day Estimated Budget
+        if (m.futureDaysCount === 0) {
+          els.kpiNextDay.textContent = '€0.00';
+          els.kpiNextDayDate.textContent = 'Trip ends 29 Nov';
+          els.kpiNextDayNote.textContent = 'Last day of schedule';
+        } else {
+          const nextDayObj = TRIP_DAYS.find((d) => d.dayNum === selectedDayNumber + 1);
+          els.kpiNextDay.textContent = formatEuro(m.nextDayEstimatedBudget);
+          els.kpiNextDayDate.textContent = nextDayObj ? nextDayObj.shortLabel : `Day ${selectedDayNumber + 1}`;
+          els.kpiNextDayNote.textContent = `2 meals × ${formatEuro(m.dynamicPerRemainingMeal)} / meal`;
+        }
+
+        // Form target reference
+        els.formTargetVal.textContent = `€15.00 baseline / ${formatEuro(m.dynamicPerRemainingMeal)} dynamic`;
+      }
+
+      /**
+       * Render Receipts Table with Seller, Amount, Date & Time, and Under/On Target/Over flag.
+       */
+      function renderReceiptsTable() {
+        const sortedReceipts = [...receipts].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+
+        const filteredReceipts = sortedReceipts.filter((r) => {
+          if (activeFilter === 'ALL') return true;
+          return getReceiptStatus(Number(r.amount)).code === activeFilter;
+        });
+
+        if (receipts.length === 0) {
+          els.emptyReceiptsState.classList.remove('hidden');
+          els.receiptsTableWrapper.classList.add('hidden');
+          return;
+        }
+
+        els.emptyReceiptsState.classList.add('hidden');
+        els.receiptsTableWrapper.classList.remove('hidden');
+
+        if (filteredReceipts.length === 0) {
+          els.receiptsTbody.innerHTML = `
+            <tr>
+              <td colspan="5" class="py-6 px-4 text-center text-xs text-burgundy/70">
+                No receipts match the selected filter.
+              </td>
+            </tr>
+          `;
+        } else {
+          els.receiptsTbody.innerHTML = filteredReceipts
+            .map((receipt) => {
+              const amount = Number(receipt.amount) || 0;
+              const status = getReceiptStatus(amount);
+              const dateKey = getDateKeyFromIso(receipt.datetime);
+              const dayMatch = TRIP_DAYS.find((d) => d.dateKey === dateKey);
+              const dayTag = dayMatch
+                ? `<span class="ml-1.5 inline-block px-1.5 py-0.5 rounded bg-blush-100 text-[10px] font-bold text-burgundy">D${dayMatch.dayNum}</span>`
+                : '';
+
+              return `
+                <tr class="hover:bg-blush-50/70 transition">
+                  <td class="py-3 px-3.5 font-semibold text-burgundy-dark">
+                    ${escapeHtml(receipt.seller)}
+                  </td>
+                  <td class="py-3 px-3.5 text-xs text-burgundy/80 tabular-nums whitespace-nowrap">
+                    ${escapeHtml(formatDisplayDateTime(receipt.datetime))}${dayTag}
+                  </td>
+                  <td class="py-3 px-3.5 text-right font-bold text-burgundy-dark tabular-nums whitespace-nowrap">
+                    ${formatEuro(amount)}
+                  </td>
+                  <td class="py-3 px-3.5 whitespace-nowrap">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border tabular-nums ${status.badgeClass}">
+                      ${status.label}
+                    </span>
+                  </td>
+                  <td class="py-3 px-3.5 text-right whitespace-nowrap space-x-1.5">
+                    <button
+                      type="button"
+                      data-action="edit"
+                      data-id="${escapeHtml(receipt.id)}"
+                      class="px-2.5 py-1 rounded-lg text-xs font-semibold text-burgundy hover:bg-blush-100 transition cursor-pointer"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      data-action="delete"
+                      data-id="${escapeHtml(receipt.id)}"
+                      class="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-700 hover:bg-rose-50 transition cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              `;
+            })
+            .join('');
+        }
+
+        // Update Table Footer Totals
+        const filteredTotal = filteredReceipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+        const totalAll = receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+        const remainingAll = TOTAL_BUDGET - totalAll;
+
+        els.tfootTotalAmount.textContent = formatEuro(filteredTotal);
+        els.tfootVarianceSummary.textContent =
+          remainingAll >= 0
+            ? `${formatEuro(remainingAll)} remaining of €180.00`
+            : `Over €180.00 by ${formatEuro(Math.abs(remainingAll))}`;
+      }
+
+      /**
+       * Main Render Loop
+       */
+      function render() {
+        const metrics = calculateMetrics();
+        renderDaySelector();
+        renderKPIs(metrics);
+        renderReceiptsTable();
+      }
+
+      function resetForm() {
+        els.editReceiptId.value = '';
+        els.receiptSeller.value = '';
+        els.receiptAmount.value = '';
+        els.formTitle.textContent = 'Log Receipt';
+        els.btnSubmitReceipt.textContent = 'Save Receipt';
+        els.btnCancelEdit.classList.add('hidden');
+        syncDefaultFormDateTime();
+      }
+
+      function startEditReceipt(id) {
+        const found = receipts.find((r) => r.id === id);
+        if (!found) return;
+
+        els.editReceiptId.value = found.id;
+        els.receiptSeller.value = found.seller;
+        els.receiptAmount.value = Number(found.amount).toFixed(2);
+        els.receiptDatetime.value = found.datetime;
+
+        els.formTitle.textContent = 'Edit Receipt';
+        els.btnSubmitReceipt.textContent = 'Update Receipt';
+        els.btnCancelEdit.classList.remove('hidden');
+        els.receiptSeller.focus();
+      }
+
+      function deleteReceipt(id) {
+        receipts = receipts.filter((r) => r.id !== id);
+        if (els.editReceiptId.value === id) {
+          resetForm();
+        }
+        saveReceipts();
+        render();
+        showStatusBanner('Receipt deleted.', 'info');
+      }
+
+      // Event Listeners
+      els.btnDismissBanner.addEventListener('click', hideStatusBanner);
+      els.btnCancelEdit.addEventListener('click', resetForm);
+
+      els.receiptForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        hideStatusBanner();
+
+        const seller = els.receiptSeller.value.trim();
+        const amount = parseFloat(els.receiptAmount.value);
+        const datetime = els.receiptDatetime.value;
+
+        if (!seller) {
+          showStatusBanner('Please enter the seller or store name.', 'error');
+          els.receiptSeller.focus();
+          return;
+        }
+        if (Number.isNaN(amount) || amount <= 0) {
+          showStatusBanner('Please enter a valid amount greater than €0.00.', 'error');
+          els.receiptAmount.focus();
+          return;
+        }
+        if (!datetime) {
+          showStatusBanner('Please select the date and time of the receipt.', 'error');
+          els.receiptDatetime.focus();
+          return;
+        }
+
+        const editId = els.editReceiptId.value;
+        if (editId) {
+          const idx = receipts.findIndex((r) => r.id === editId);
+          if (idx !== -1) {
+            receipts[idx] = {
+              id: editId,
+              seller,
+              amount: Math.round(amount * 100) / 100,
+              datetime,
+            };
+          }
+          showStatusBanner(`Updated receipt from ${seller} (${formatEuro(amount)}).`, 'success');
+        } else {
+          const newId = `rcpt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          receipts.push({
+            id: newId,
+            seller,
+            amount: Math.round(amount * 100) / 100,
+            datetime,
+          });
+          showStatusBanner(`Saved receipt from ${seller} (${formatEuro(amount)}).`, 'success');
+        }
+
+        // Automatically switch active day pill if receipt date belongs to one of the 6 trip days
+        const dateKey = getDateKeyFromIso(datetime);
+        const matchedDay = TRIP_DAYS.find((d) => d.dateKey === dateKey);
+        if (matchedDay) {
+          selectedDayNumber = matchedDay.dayNum;
+        }
+
+        saveReceipts();
+        resetForm();
+        render();
+      });
+
+      els.receiptsTbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const id = btn.getAttribute('data-id');
+        if (action === 'edit') {
+          startEditReceipt(id);
+        } else if (action === 'delete') {
+          deleteReceipt(id);
+        }
+      });
+
+      els.filterStatus.addEventListener('change', () => {
+        activeFilter = els.filterStatus.value;
+        render();
+      });
+
+      // Initialize default date/time & render
+      syncDefaultFormDateTime();
+      render();
+    })();
+  </script>
+</body>
+</html>
